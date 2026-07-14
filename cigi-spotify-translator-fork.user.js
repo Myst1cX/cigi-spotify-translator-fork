@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name         Cigi Spotify Translator 2.0
+// @name         Cigi Spotify Translator
 // @namespace    http://tampermonkey.net/
-// @version      2.0
+// @version      1.0.fork
 // @description  Extract, translate, and display Spotify lyrics with a language selector and manual translation trigger
-// @author       Raiwulf
+// @author       Raiwulf, Myst1cX (fork)
 // @match        *://*.spotify.com/*
 // @grant        GM_registerMenuCommand
 // @grant        GM_unregisterMenuCommand
@@ -15,29 +15,33 @@
 // @updateURL    https://raw.githubusercontent.com/Myst1cX/cigi-spotify-translator-fork/main/cigi-spotify-translator-fork.user.js
 // @downloadURL  https://raw.githubusercontent.com/Myst1cX/cigi-spotify-translator-fork/main/cigi-spotify-translator-fork.user.js
 // ==/UserScript==
-// Changelog:
-// 2.0 - Full rewrite of translation triggering, lyrics persistence, header positioning, and caching.
-//       Translate is now a manual, on-demand action (was: auto-translated on every lyrics DOM change
-//       plus a 2s polling loop). A generation-counter state machine prevents race conditions when
-//       clicking Translate repeatedly or switching languages mid-run.
-//       Lyrics detection updated for Spotify's current DOM ([data-testid="lyrics-line"]; the old
-//       [data-testid="fullscreen-lyric"/"lyrics-container"] selectors were retired by Spotify).
-//       Translations no longer disappear during playback or when seeking - a repair-only
-//       MutationObserver reinserts them from an in-memory cache whenever Spotify's React re-render
-//       wipes them out, with zero extra network calls.
-//       The language/Translate header is now fixed-position and stays pinned to the top of the
-//       screen regardless of scrolling (synced to .main-view-container via ResizeObserver + resize
-//       listener), and fully mounts/unmounts with the lyrics view opening/closing, cleaning up all
-//       observers, timeouts, and state each time.
-//       Added a persistent, cross-session, cross-language translation cache (GM_setValue/GM_getValue),
-//       so re-opening a song/language you've already translated loads instantly with no network call.
-//       Count-based LRU eviction; viewable and clearable via new Tampermonkey menu commands ("Cigi:
-//       Show Translation Cache" / "Cigi: Clear Translation Cache").
-//       Added two small fade-in icons next to the Translate button as visual feedback: one for a
-//       fresh translation just saved to the cache, one for a translation loaded from the cache.
-//       Both share a single positioning slot so they render in the exact same spot.
-//       Added a toggleable "Debug Logging (Console)" option in the Tampermonkey menu for optional
-//       verbose console output - off by default, no page reload required to toggle.
+
+// Original version: 1.0
+// GREASYFORK LINK: https://greasyfork.org/en/scripts/523415-cigi-spotify-translator
+
+// Changelog: 1.0.fork
+// Full rewrite of translation triggering, lyrics persistence, header positioning, and caching.
+// Translate is now a manual, on-demand action (was: auto-translated on every lyrics DOM change
+// plus a 2s polling loop). A generation-counter state machine prevents race conditions when
+// clicking Translate repeatedly or switching languages mid-run.
+// Lyrics detection updated for Spotify's current DOM ([data-testid="lyrics-line"]; the old
+// [data-testid="fullscreen-lyric"/"lyrics-container"] selectors were retired by Spotify).
+// Translations no longer disappear during playback or when seeking - a repair-only
+// MutationObserver reinserts them from an in-memory cache whenever Spotify's React re-render
+// wipes them out, with zero extra network calls.
+// The language/Translate header is now fixed-position and stays pinned to the top of the
+// screen regardless of scrolling (synced to .main-view-container via ResizeObserver + resize
+// listener), and fully mounts/unmounts with the lyrics view opening/closing, cleaning up all
+// observers, timeouts, and state each time.
+// Added a persistent, cross-session, cross-language translation cache (GM_setValue/GM_getValue),
+// so re-opening a song/language you've already translated loads instantly with no network call.
+// Count-based LRU eviction; viewable and clearable via new Tampermonkey menu commands ("Cigi:
+// Show Translation Cache" / "Cigi: Clear Translation Cache").
+// Added two small fade-in icons next to the Translate button as visual feedback: one for a
+// fresh translation just saved to the cache, one for a translation loaded from the cache.
+// Both share a single positioning slot so they render in the exact same spot.
+// Added a toggleable "Debug Logging (Console)" option in the Tampermonkey menu for optional
+// verbose console output - off by default, no page reload required to toggle.
 
 (function () {
     'use strict';
