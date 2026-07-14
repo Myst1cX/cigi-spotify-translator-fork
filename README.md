@@ -1,12 +1,12 @@
 ## CIGI SPOTIFY TRANSLATOR (FORK)
 
-> A rewritten fork of Cigi Spotify Translator — translates lyrics inline inside the stock Spotify Web Player lyrics view, on demand, with results cached so you're not re-translating the same song twice.  
+> A rewritten fork of Cigi Spotify Translator. Translates lyrics inline inside the stock Spotify Web Player lyrics view, on demand, with results cached so you're not re-translating the same song twice.  
 > **Recommended userscript manager:** [Violentmonkey](https://violentmonkey.github.io/)
 
 ## Features
 
 > **MANUAL, ON-DEMAND TRANSLATION**  
-> Translate only runs when you click it — no background auto-translating, no polling.  
+> Translate only runs when you click it. No background auto-translating, no polling.  
 > Handles rapid clicks and language switches cleanly via a generation-counter state machine.
 >
 > **STABLE DURING PLAYBACK**  
