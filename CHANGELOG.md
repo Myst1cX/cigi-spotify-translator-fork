@@ -1,4 +1,4 @@
-# Cigi Spotify Translator — Changelog
+# Cigi Spotify Translator - Changelog
 
 ## v2.0
 
