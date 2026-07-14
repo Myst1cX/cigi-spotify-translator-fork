@@ -17,7 +17,7 @@
 > The language selector + Translate bar stays fixed to the top of the screen while scrolling through lyrics, instead of scrolling away.
 >
 > **PERSISTENT TRANSLATION CACHE**  
-> Already translated a song into a language before? Opening it again loads instantly — no network call.  
+> Already translated a song into a language before? Opening it again loads instantly - no network call.  
 > Cross-session, cross-language, viewable/clearable from the userscript manager's menu.
 >
 > **VISUAL FEEDBACK**  
