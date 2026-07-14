@@ -40,7 +40,7 @@
 // Added two small fade-in icons next to the Translate button as visual feedback: one for a
 // fresh translation just saved to the cache, one for a translation loaded from the cache.
 // Both share a single positioning slot so they render in the exact same spot.
-// Added a toggleable "Debug Logging (Console)" option in the Tampermonkey menu for optional
+// Added a toggleable "Debug Logging (console)" option in the Tampermonkey menu for optional
 // verbose console output - off by default, no page reload required to toggle.
 
 (function () {
@@ -66,7 +66,7 @@
     }
 
     function registerDebugMenu() {
-        const label = (debugEnabled ? '✅' : '❌') + ' Debug Logging (Console)';
+        const label = (debugEnabled ? '✅' : '❌') + ' Debug Logging (console)';
         debugMenuId = GM_registerMenuCommand(label, toggleDebugLogging);
     }
 
