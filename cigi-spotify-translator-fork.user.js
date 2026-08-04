@@ -42,6 +42,8 @@
 // Both share a single positioning slot so they render in the exact same spot.
 // Added a toggleable "Debug Logging (console)" option in the Tampermonkey menu for optional
 // verbose console output - off by default, no page reload required to toggle.
+// Fixed the header wrongly persisting when the Library overlay (spotifuck-mobile.user.js script exclusive) is opened
+// over the lyrics view - it now hides for Library the same way it already does for Home/Search.
 
 (function () {
     'use strict';
@@ -926,7 +928,13 @@
     }
 
     function watchLyricsPresence() {
-        const lyricsPresent = !!document.querySelector('[data-testid="lyrics-line"]');
+        // Library overlay (from spotifuck-mobile, if installed) sits on top of the page
+        // without changing the route or removing the underlying lyrics DOM, so
+        // lyrics-line would otherwise still read as "present" and the header would
+        // wrongly persist over it instead of hiding like it does for Home/Search.
+        const librarySidebar = document.querySelector('#Desktop_LeftSidebar_Id');
+        const libraryOpen = !!librarySidebar && librarySidebar.dataset.fuckExpanded === 'true';
+        const lyricsPresent = !libraryOpen && !!document.querySelector('[data-testid="lyrics-line"]');
 
         if (lyricsPresent && !headerElement) {
             dbgLog('watchLyricsPresence() lyrics container opened, mounting header (no auto-translate)');
