@@ -42,10 +42,8 @@
 // Both share a single positioning slot so they render in the exact same spot.
 // Added a toggleable "Debug Logging (console)" option in the Tampermonkey menu for optional
 // verbose console output - off by default, no page reload required to toggle.
-// Fixed the header wrongly persisting when the Library overlay is opened (spotifuck-mobile script exclusive overlay)
+// Fixed the header wrongly persisting when the Library overlay (spotifuck-mobile.user.js script exclusive) is opened
 // over the lyrics view - it now hides for Library the same way it already does for Home/Search.
-// Same fix extended to the Queue, Connect to a device, and Now playing view side panels, which
-// all overlay the lyrics view without changing the route - the header now hides for these too.
 
 (function () {
     'use strict';
@@ -929,22 +927,6 @@
         disconnectRepairObserver();
     }
 
-    // Queue / Connect to a device / Now playing view all render as the same
-    // #Desktop_PanelContainer_Id <aside> - Spotify reuses one container element for all
-    // three panels and only swaps its aria-label ("Connect to a device", "Queue", or
-    // "Now playing view") depending on which one is open. So we can't tell them apart
-    // by id/class - we grab that single element by id, read its current aria-label, and
-    // treat the overlay as open if the label matches any of the three. Like the Library
-    // overlay, these panels sit on top of the page without changing the route or removing
-    // the underlying lyrics DOM, so lyrics-line would otherwise still read as "present"
-    // and the header would wrongly persist over them.
-    function isSidePanelOverlayOpen() {
-        const panel = document.getElementById('Desktop_PanelContainer_Id');
-        if (!panel) return false;
-        const label = panel.getAttribute('aria-label') || '';
-        return label === 'Connect to a device' || label === 'Queue' || label === 'Now playing view';
-    }
-
     function watchLyricsPresence() {
         // Library overlay (from spotifuck-mobile, if installed) sits on top of the page
         // without changing the route or removing the underlying lyrics DOM, so
@@ -952,8 +934,7 @@
         // wrongly persist over it instead of hiding like it does for Home/Search.
         const librarySidebar = document.querySelector('#Desktop_LeftSidebar_Id');
         const libraryOpen = !!librarySidebar && librarySidebar.dataset.fuckExpanded === 'true';
-        const overlayOpen = libraryOpen || isSidePanelOverlayOpen();
-        const lyricsPresent = !overlayOpen && !!document.querySelector('[data-testid="lyrics-line"]');
+        const lyricsPresent = !libraryOpen && !!document.querySelector('[data-testid="lyrics-line"]');
 
         if (lyricsPresent && !headerElement) {
             dbgLog('watchLyricsPresence() lyrics container opened, mounting header (no auto-translate)');
