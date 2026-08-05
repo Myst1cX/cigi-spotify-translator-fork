@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         Cigi Spotify Translator 6
+// @name         Cigi Spotify Translator
 // @namespace    http://tampermonkey.net/
 // @version      1.0.1.fork
 // @description  Extract, translate, and display Spotify lyrics with a language selector and manual translation trigger
