@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Cigi Spotify Translator
+// @name         Cigi Spotify Translator 6
 // @namespace    http://tampermonkey.net/
-// @version      1.0.fork
+// @version      1.0.1.fork
 // @description  Extract, translate, and display Spotify lyrics with a language selector and manual translation trigger
 // @author       Raiwulf, Myst1cX (fork)
 // @match        *://*.spotify.com/*
@@ -42,8 +42,16 @@
 // Both share a single positioning slot so they render in the exact same spot.
 // Added a toggleable "Debug Logging (console)" option in the Tampermonkey menu for optional
 // verbose console output - off by default, no page reload required to toggle.
+
+// Changelog: 1.0.1.fork
 // Fixed the header wrongly persisting when the Library overlay (spotifuck-mobile.user.js script exclusive) is opened
 // over the lyrics view - it now hides for Library the same way it already does for Home/Search.
+// Same problem as the Library fix above, for Queue and Connect-to-a-device
+// (spotifuck-mobile/SpotiwebJS, if installed): both share #Desktop_PanelContainer_Id with Now
+// Playing view, with Spotify swapping its aria-label depending on which one is showing.
+// watchLyricsPresence() now also hides the header while either is open, detected via the
+// panel's own rendered geometry (offsetParent) rather than the aria-hidden flag on its
+// ancestor - that flag didn't reliably reflect Queue/Connect's open state, only NPV's.
 
 (function () {
     'use strict';
@@ -849,7 +857,9 @@
         }
 
         // Appended to body (not into the scroll node) so position:fixed isn't affected by
-        // any transform OverlayScrollbars applies to an ancestor - see 1.5 changelog note.
+        // any transform OverlayScrollbars applies to an ancestor - a transform on an
+        // ancestor becomes the containing block for fixed descendants, which breaks
+        // viewport-pinning if the header lives inside that subtree.
         document.body.appendChild(header);
         headerElement = header;
 
@@ -934,7 +944,21 @@
         // wrongly persist over it instead of hiding like it does for Home/Search.
         const librarySidebar = document.querySelector('#Desktop_LeftSidebar_Id');
         const libraryOpen = !!librarySidebar && librarySidebar.dataset.fuckExpanded === 'true';
-        const lyricsPresent = !libraryOpen && !!document.querySelector('[data-testid="lyrics-line"]');
+
+        // Queue and Connect-to-a-device (spotifuck-mobile, if installed) share
+        // #Desktop_PanelContainer_Id with Now Playing view - Spotify swaps its aria-label
+        // depending on which one is showing. Checked via the panel's own rendered geometry
+        // (offsetParent), not the aria-hidden flag on its ancestor - that flag didn't
+        // reliably reflect Queue/Connect's open state, only NPV's. NPV itself isn't checked
+        // here and hasn't been verified against the header's z-index (9999) - if NPV opens
+        // while lyrics are still considered "present", the header may float on top of it.
+        const panelContainer = document.querySelector('#Desktop_PanelContainer_Id');
+        const panelLabel = panelContainer ? panelContainer.getAttribute('aria-label') : null;
+        const otherPanelOpen = !!panelContainer
+            && (panelLabel === 'Queue' || panelLabel === 'Connect to a device')
+            && panelContainer.offsetParent !== null;
+
+        const lyricsPresent = !libraryOpen && !otherPanelOpen && !!document.querySelector('[data-testid="lyrics-line"]');
 
         if (lyricsPresent && !headerElement) {
             dbgLog('watchLyricsPresence() lyrics container opened, mounting header (no auto-translate)');
