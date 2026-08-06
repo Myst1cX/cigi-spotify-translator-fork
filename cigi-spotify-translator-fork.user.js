@@ -42,10 +42,10 @@
 // Both share a single positioning slot so they render in the exact same spot.
 // Added a toggleable "Debug Logging (console)" option in the Tampermonkey menu for optional
 // verbose console output - off by default, no page reload required to toggle.
-// Fixed the header wrongly persisting when the Library overlay (spotifuck-mobile.user.js script exclusive) is opened
-// over the lyrics view - it now hides for Library the same way it already does for Home/Search.
 
 // Changelog: 1.0.1.fork
+// Fixed the header wrongly persisting when the Library overlay (spotifuck-mobile.user.js script exclusive) is opened
+// over the lyrics view - it now hides for Library the same way it already does for Home/Search.
 // Fixed the header's z-index (9999, inherited by the Translate button) being high enough to
 // render on top of Spotifuck Mobile's NPV/Connect/Queue overlay views instead of staying behind them.
 // Lowered to 1000, matching the language dropdown's z-index, which is enough to stay above the lyrics view 
