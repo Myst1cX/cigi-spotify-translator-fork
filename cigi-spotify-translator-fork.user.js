@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cigi Spotify Translator
 // @namespace    https://github.com/Myst1cX/cigi-spotify-translator-fork
-// @version      1.0.fork
+// @version      1.1.fork
 // @description  Extract, translate, and display Spotify lyrics with a language selector and manual translation trigger
 // @author       Raiwulf, Myst1cX (fork)
 // @match        *://open.spotify.com/*
@@ -44,6 +44,12 @@
 // verbose console output - off by default, no page reload required to toggle.
 // Fixed the header wrongly persisting when the Library overlay (spotifuck-mobile.user.js script exclusive) is opened
 // over the lyrics view - it now hides for Library the same way it already does for Home/Search.
+
+// Changelog: 1.0.1.fork
+// Fixed the header's z-index (9999, inherited by the Translate button) being high enough to
+// render on top of Spotifuck Mobile's NPV/Connect/Queue overlay views instead of staying behind them.
+// Lowered to 1000, matching the language dropdown's z-index, which is enough to stay above the lyrics view 
+// but no longer overlaps those overlays (spotifuck-mobile.user.js script exclusive).
 
 (function () {
     'use strict';
@@ -569,7 +575,7 @@
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
             margin: 0;
             position: fixed;
-            z-index: 9999;
+            z-index: 1000;
         `;
 
         const controlsContainer = document.createElement('div');
