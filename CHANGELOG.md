@@ -1,6 +1,6 @@
 # Cigi Spotify Translator - Changelog
 
-## v2.0
+## v1.0.fork
 
 ### What changed (plain-language summary)
 
