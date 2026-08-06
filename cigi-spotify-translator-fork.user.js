@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         Cigi Spotify Translator
-// @namespace    http://tampermonkey.net/
+// @namespace    https://github.com/Myst1cX/cigi-spotify-translator-fork
 // @version      1.0.fork
 // @description  Extract, translate, and display Spotify lyrics with a language selector and manual translation trigger
 // @author       Raiwulf, Myst1cX (fork)
-// @match        *://*.spotify.com/*
+// @match        *://open.spotify.com/*
 // @grant        GM_registerMenuCommand
 // @grant        GM_unregisterMenuCommand
 // @grant        GM_getValue
