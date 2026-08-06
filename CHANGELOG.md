@@ -25,7 +25,7 @@
 
 ### Summary: What's different from v1.0
 
-| Area | v1.0 | v2.0 |
+| Area | v1.0 | v1.0.fork |
 |---|---|---|
 | Translation trigger | Auto-translated on every lyric DOM change + a 2s polling loop | Manual - only on Translate click or language change, with a generation-counter state machine |
 | Lyrics detection | `[data-testid="fullscreen-lyric"]` / `[data-testid="lyrics-container"]` (retired by Spotify) | `[data-testid="lyrics-line"]` |
@@ -36,3 +36,26 @@
 | Visual feedback | None | Two fade-in icons: "just cached" vs. "loaded from cache" |
 | Debugging | None | Toggleable debug logging via Tampermonkey menu |
 | Permissions (`@grant`) | `none` | `GM_registerMenuCommand`, `GM_unregisterMenuCommand`, `GM_getValue`, `GM_setValue` |
+
+## v1.0.1.fork
+
+### What changed (plain-language summary)
+
+- **The header no longer gets stuck on-screen when the Library overlay opens** (spotifuck-mobile.user.js only) - it now hides for Library the same way it already did for Home/Search.
+- **The Translate button no longer renders on top of Spotifuck Mobile's Now Playing View, Connect, or Queue overlays.** It stayed correctly behind the lyrics view itself, but its z-index was high enough to punch through those overlays too.
+
+### Technical detail
+
+- **Header visibility on Library overlay:** The header's hide/show logic already reacted to Home/Search views; extended the same check to cover the Library overlay (spotifuck-mobile.user.js exclusive), which was previously left out and let the header persist over it.
+- **Header z-index:** The header's `z-index: 9999` (inherited by the Translate button) was high enough to render above Spotifuck Mobile's NPV/Connect/Queue overlay views instead of staying behind them. Lowered to `1000`, matching the language dropdown's existing z-index - enough to stay above the lyrics view, but no longer above those overlays (spotifuck-mobile.user.js exclusive).
+
+## v1.0.2.fork
+
+### What changed (plain-language summary)
+
+- **Fixed the Translate button appearing to float on top of NPV/Queue/Connect overlays**, even though its z-index was already correct and its neighbor, the language dropdown, correctly stayed hidden in the same situation.
+
+### Technical detail
+
+- **Root cause was never z-index or stacking.** Any panel opening (native docking, or spotifuck-mobile.user.js's `width:100vw` squeeze on mobile) shrinks `.main-view-container`, which `positionHeader()` mirrors onto the header. When that squeeze goes all the way to `width: 0` (spotifuck-mobile's mobile takeover case), the header becomes a 0-width fixed box, and its still-flexed, still-centered children spill out from that collapsed midpoint in opposite directions: the language dropdown spills left into negative, off-screen coordinates, while Translate (later in flex order) spills right back onto visible ground and just sits there over whatever's underneath.
+- **Fix:** `positionHeader()` now hides the header via `visibility: hidden` (not `display: none`, which would zero out `offsetHeight` and desync the scroll spacer) whenever `.main-view-container`'s measured width collapses to `0`, and restores it once real space is back. Self-contained - no dependency on spotifuck-mobile's presence or selectors, so it's a no-op (header behaves exactly as before) when that script isn't installed.
