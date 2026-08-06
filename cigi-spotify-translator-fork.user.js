@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cigi Spotify Translator
 // @namespace    https://github.com/Myst1cX/cigi-spotify-translator-fork
-// @version      1.1.fork
+// @version      1.0.2.fork
 // @description  Extract, translate, and display Spotify lyrics with a language selector and manual translation trigger
 // @author       Raiwulf, Myst1cX (fork)
 // @match        *://open.spotify.com/*
@@ -50,6 +50,21 @@
 // render on top of Spotifuck Mobile's NPV/Connect/Queue overlay views instead of staying behind them.
 // Lowered to 1000, matching the language dropdown's z-index, which is enough to stay above the lyrics view 
 // but no longer overlaps those overlays (spotifuck-mobile.user.js script exclusive).
+
+// Changelog: 1.0.2.fork
+// Fixed the Translate button appearing to "float over" NPV/Queue/Connect overlays while its own
+// language dropdown correctly stayed hidden. Root cause wasn't z-index or stacking at all: any
+// panel opening (native docking, or spotifuck-mobile.user.js's width:100vw squeeze on mobile)
+// shrinks .main-view-container, which positionHeader() mirrors onto the header - when that
+// squeeze goes all the way to width:0 (spotifuck-mobile's mobile takeover case), the header
+// becomes a 0-width fixed box, and its still-flexed, still-centered children spill out from that
+// collapsed midpoint in opposite directions: the language dropdown spills left into negative,
+// off-screen coordinates, while Translate (later in flex order) spills right back onto visible
+// ground and just sits there over whatever's underneath. positionHeader() now hides the header
+// via visibility:hidden (not display:none, which would zero out offsetHeight and desync the
+// scroll spacer) whenever .main-view-container's measured width collapses to 0, and restores it
+// once real space is back - self-contained, no dependency on spotifuck-mobile's presence or
+// selectors, so it's a no-op (header behaves exactly as before) when that script isn't installed.
 
 (function () {
     'use strict';
@@ -888,13 +903,25 @@
             return;
         }
         const rect = mainViewContainer.getBoundingClientRect();
-        headerElement.style.left = `${rect.left}px`;
-        headerElement.style.top = `${rect.top}px`;
-        headerElement.style.width = `${rect.width}px`;
+
+        // .main-view-container collapses to width:0 whenever a panel (NPV/Queue/Connect)
+        // takes over the full viewport - flexbox then centers our fixed-width children around
+        // that 0-width midpoint, spilling one off-screen and leaving the other floating visibly
+        // over the panel. Hide (not remove) whenever that collapse happens; visibility:hidden
+        // keeps offsetHeight intact so the spacer below doesn't thrash the ResizeObserver.
+        if (rect.width <= 0) {
+            headerElement.style.visibility = 'hidden';
+        } else {
+            headerElement.style.visibility = 'visible';
+            headerElement.style.left = `${rect.left}px`;
+            headerElement.style.top = `${rect.top}px`;
+            headerElement.style.width = `${rect.width}px`;
+        }
+
         if (headerSpacerElement) {
             headerSpacerElement.style.height = `${headerElement.offsetHeight}px`;
         }
-        dbgLog(`positionHeader() left=${Math.round(rect.left)} top=${Math.round(rect.top)} width=${Math.round(rect.width)}`);
+        dbgLog(`positionHeader() left=${Math.round(rect.left)} top=${Math.round(rect.top)} width=${Math.round(rect.width)} visible=${rect.width > 0}`);
     }
 
     function removeHeader() {
