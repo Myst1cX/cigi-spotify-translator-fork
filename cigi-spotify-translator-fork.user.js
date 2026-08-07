@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cigi Spotify Translator
 // @namespace    https://github.com/Myst1cX/cigi-spotify-translator-fork
-// @version      1.0.2.fork
+// @version      1.0.3.fork
 // @description  Extract, translate, and display Spotify lyrics with a language selector and manual translation trigger
 // @author       Raiwulf, Myst1cX (fork)
 // @match        *://open.spotify.com/*
@@ -65,6 +65,16 @@
 // scroll spacer) whenever .main-view-container's measured width collapses to 0, and restores it
 // once real space is back - self-contained, no dependency on spotifuck-mobile's presence or
 // selectors, so it's a no-op (header behaves exactly as before) when that script isn't installed.
+
+// Changelog: 1.0.3.fork
+// Added a small red "✕" button next to Translate that clears the currently-displayed
+// translation without touching the persistent cache - re-clicking Translate afterwards
+// still reloads instantly from cache. Shares Translate's height/font/border-radius so it
+// sits on the same baseline, but stays compact (no min-width) instead of matching
+// Translate's full width, so it reads as a lightweight companion action. Also cancels any
+// in-flight translation run (generation bump) and resets both cache-feedback icons, so a
+// stale "just cached"/"cache hit" badge can't keep glowing after the translation it
+// refers to has been removed.
 
 (function () {
     'use strict';
@@ -578,6 +588,43 @@
         attachRepairObserver();
     }
 
+    // Clears the currently-displayed translation (DOM only) without touching the
+    // persistent cache - re-clicking Translate afterwards reloads instantly from cache.
+    // Mirrors pip-gui-stable's removeTranslatedLyrics(), adapted to cigi's extra state:
+    // - bumps translateGeneration and resets isTranslating/translatingForLang so an
+    //   in-flight run's results get discarded instead of landing back in the DOM
+    //   after removal (same trick removeHeader() already uses for unmount).
+    // - disconnects the repair observer BEFORE removing the lines, otherwise it would
+    //   see them vanish and immediately reinsert them from its own lineTranslationCache.
+    // - resets both cache-feedback icons (and their pending fade timeouts) so a stale
+    //   "just cached"/"cache hit" badge can't keep glowing after the translation it
+    //   refers to has been removed.
+    function removeTranslation() {
+        dbgLog('removeTranslation() clicked, clearing displayed translation (cache untouched)');
+        translateGeneration++;
+        isTranslating = false;
+        translatingForLang = null;
+        disconnectRepairObserver();
+
+        const removed = document.querySelectorAll('[data-translated="true"]');
+        removed.forEach(el => el.remove());
+        lineTranslationCache = new Map();
+
+        if (newlyCachedIconHideTimeout) {
+            clearTimeout(newlyCachedIconHideTimeout);
+            newlyCachedIconHideTimeout = null;
+        }
+        if (newlyCachedIconElement) newlyCachedIconElement.style.opacity = '0';
+
+        if (cacheHitIconHideTimeout) {
+            clearTimeout(cacheHitIconHideTimeout);
+            cacheHitIconHideTimeout = null;
+        }
+        if (cacheHitIconElement) cacheHitIconElement.style.opacity = '0';
+
+        dbgLog(`removeTranslation() removed ${removed.length} translation line(s)`);
+    }
+
     function createHeader() {
         dbgLog('createHeader() building UI');
         const header = document.createElement('div');
@@ -787,6 +834,29 @@
             translateLyrics();
         });
 
+        // Small red button that clears the currently-displayed translation (DOM only,
+        // persistent cache untouched - see removeTranslation()). Deliberately shares
+        // Translate's vertical rhythm (same padding-block/font-size/border-radius, so
+        // it lines up on the same baseline and height) but drops Translate's
+        // min-width:100px in favor of tight horizontal padding, so it reads as a
+        // compact companion action rather than a second equally-weighted button.
+        const removeButton = document.createElement('button');
+        removeButton.textContent = '✕';
+        removeButton.title = 'Remove translation';
+        removeButton.setAttribute('data-cigi-remove-btn', 'true');
+        removeButton.style.cssText = `
+            padding: 8px 10px;
+            background-color: #e0245e;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            line-height: 1;
+        `;
+        removeButton.addEventListener('click', removeTranslation);
+
         // Transient icon shown briefly the moment a fresh translation gets stored into the
         // persistent cache (see showNewlyCachedIcon()). Stays in the DOM at all times,
         // opacity-toggled + CSS-transitioned rather than display-toggled, so the fade
@@ -860,6 +930,7 @@
 
         controlsContainer.appendChild(selectContainer);
         controlsContainer.appendChild(translateButton);
+        controlsContainer.appendChild(removeButton);
         controlsContainer.appendChild(iconSlot);
         header.appendChild(controlsContainer);
 
@@ -985,3 +1056,4 @@
         watchLyricsPresence();
     });
 })();
+
