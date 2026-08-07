@@ -59,3 +59,28 @@
 
 - **Root cause was never z-index or stacking.** Any panel opening (native docking, or spotifuck-mobile.user.js's `width:100vw` squeeze on mobile) shrinks `.main-view-container`, which `positionHeader()` mirrors onto the header. When that squeeze goes all the way to `width: 0` (spotifuck-mobile's mobile takeover case), the header becomes a 0-width fixed box, and its still-flexed, still-centered children spill out from that collapsed midpoint in opposite directions: the language dropdown spills left into negative, off-screen coordinates, while Translate (later in flex order) spills right back onto visible ground and just sits there over whatever's underneath.
 - **Fix:** `positionHeader()` now hides the header via `visibility: hidden` (not `display: none`, which would zero out `offsetHeight` and desync the scroll spacer) whenever `.main-view-container`'s measured width collapses to `0`, and restores it once real space is back. Self-contained - no dependency on spotifuck-mobile's presence or selectors, so it's a no-op (header behaves exactly as before) when that script isn't installed.
+
+## v1.0.3.fork
+
+### What changed (plain-language summary)
+
+- **A small red "✕" button now sits next to Translate**, letting you clear the translation currently on screen without touching what's saved in the cache. Click Translate again afterwards and it reloads instantly, same as before.
+- **Translate and the new remove button now line up cleanly** on an identical footprint, regardless of padding/font differences between them.
+
+### Technical detail
+
+- **New `removeTranslation()` function:** Clears the currently displayed translation from the DOM only - the persistent cache is untouched, so re-clicking Translate afterwards still reloads instantly from cache. Adapted from pip-gui-stable's `removeTranslatedLyrics()` to cigi's extra state:
+  - Bumps `translateGeneration` and resets `isTranslating`/`translatingForLang`, so an in-flight translation run's results are discarded instead of landing back in the DOM after removal (same technique `removeHeader()` already used for unmount).
+  - Disconnects the repair `MutationObserver` *before* removing the lines - otherwise it would see them vanish and immediately reinsert them from its own `lineTranslationCache`.
+  - Resets both cache-feedback icons (and clears their pending fade timeouts) so a stale "just cached"/"cache hit" badge can't keep glowing after the translation it refers to has been removed.
+- **New remove button:** Small red "✕" button (`data-cigi-remove-btn`), added next to Translate, wired to `removeTranslation()` on click. Uses Spotify's own `#e22134` red (the same one used for its Explicit/live badges) with a hover-darken to `#c11a2b`, deliberately calmer than Translate's `#1db954` green so it reads as a lightweight companion action rather than a second equally-weighted button.
+- **Button sizing:** Both Translate and the remove button now explicitly set `height: 36px` with `box-sizing: border-box` and flex-centered content, so they sit on an identical footprint regardless of padding/font differences. The remove button drops Translate's `min-width: 100px` in favor of tight horizontal padding, keeping it visually compact.
+
+### Summary: What's different from v1.0.2.fork
+
+| Area | v1.0.2.fork | v1.0.3.fork |
+|---|---|---|
+| Clearing a translation | Not possible - only re-translating or closing lyrics | New "✕" button clears the displayed translation (DOM only), cache stays intact |
+| Button sizing | Translate used `padding: 8px 16px`, no explicit height | Translate and remove button both explicit `height: 36px`, `box-sizing: border-box`, flex-centered |
+| In-flight run on clear | N/A | Clearing bumps the generation counter, discarding any in-flight translation results |
+| Cache-feedback icons on clear | N/A | Both icons (and their fade timeouts) reset so no stale badge lingers after removal |
