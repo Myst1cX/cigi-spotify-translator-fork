@@ -72,11 +72,13 @@
 // still reloads instantly from cache. Both buttons now share an explicit height:36px
 // (box-sizing:border-box, flex-centered content) so they sit on an identical footprint
 // regardless of padding/font differences; the remove button stays compact (no min-width,
-// tight horizontal padding, saturated #ff3b30 red with a hover-darken) so it reads as a
-// lightweight companion action rather than a second equally-weighted button. Also cancels
-// any in-flight translation run (generation bump) and resets both cache-feedback icons, so
-// a stale "just cached"/"cache hit" badge can't keep glowing after the translation it
-// refers to has been removed.
+// tight horizontal padding, Spotify's own #e22134 red - same one used for its Explicit/live
+// badges - with a hover-darken to #c11a2b) so it reads as a lightweight companion action
+// rather than a second equally-weighted button, and its brightness stays calmer than
+// Translate's #1db954 green rather than visually competing with it. Also cancels any
+// in-flight translation run (generation bump) and resets both cache-feedback icons, so a
+// stale "just cached"/"cache hit" badge can't keep glowing after the translation it refers
+// to has been removed.
 
 (function () {
     'use strict';
@@ -855,7 +857,7 @@
             box-sizing: border-box;
             height: 36px;
             padding: 0 12px;
-            background-color: #ff3b30;
+            background-color: #e22134;
             color: white;
             border: none;
             border-radius: 4px;
@@ -866,8 +868,8 @@
             align-items: center;
             justify-content: center;
         `;
-        removeButton.addEventListener('mouseenter', () => { removeButton.style.backgroundColor = '#e0291f'; });
-        removeButton.addEventListener('mouseleave', () => { removeButton.style.backgroundColor = '#ff3b30'; });
+        removeButton.addEventListener('mouseenter', () => { removeButton.style.backgroundColor = '#c11a2b'; });
+        removeButton.addEventListener('mouseleave', () => { removeButton.style.backgroundColor = '#e22134'; });
         removeButton.addEventListener('click', removeTranslation);
 
         // Transient icon shown briefly the moment a fresh translation gets stored into the
