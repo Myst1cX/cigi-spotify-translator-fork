@@ -84,3 +84,16 @@
 | Button sizing | Translate used `padding: 8px 16px`, no explicit height | Translate and remove button both explicit `height: 36px`, `box-sizing: border-box`, flex-centered |
 | In-flight run on clear | N/A | Clearing bumps the generation counter, discarding any in-flight translation results |
 | Cache-feedback icons on clear | N/A | Both icons (and their fade timeouts) reset so no stale badge lingers after removal |
+
+## v1.0.4.fork
+
+### What changed (plain-language summary)
+
+- **The Translate header no longer floats on top of Spotify Lyrics+'s popup window.** If you use the separate "Spotify Lyrics+" script and its floating lyrics popup happens to overlap where our header sits, our header now ducks out of the way instead of covering it.
+
+### Technical detail
+
+- **Root cause was not z-index.** Spotify Lyrics+'s popup (`#lyrics-plus-popup`) sets `z-index: 100000`, which should comfortably beat our header's `z-index: 1000` - but Lyrics+ appends that popup *inside* `.main-view-container`, the same element that sits under an ancestor `transform` (from Spotify's OverlayScrollbars) that our own header is deliberately appended to `document.body` to escape (see v1.0.fork). That `transform` creates a separate stacking context, so the popup's `z-index: 100000` is only ever compared against other elements trapped inside that same context - it's never actually compared to our header's `z-index` at all. Our header, living in the root stacking context, ends up outranking that entire subtree regardless of what z-index Lyrics+ used internally.
+- **Fix:** since this is a stacking-context issue rather than a numbers issue, `positionHeader()` now measures the Lyrics+ popup's actual on-screen box (treated as absent if it's closed, `display: none`, `visibility: hidden`, or fully transparent) and compares it against the header's own box. On overlap, the header hides via the same `visibility: hidden` technique already used for the NPV/Queue/Connect collapse case - so it only ducks when the two actually intersect, not any time Lyrics+ happens to be open elsewhere on screen.
+- **Live tracking while dragging/resizing:** Lyrics+ moves its popup via direct inline `style.left/top/width/height` writes, which fire neither a `.main-view-container` resize nor our existing `ResizeObserver`. A new `MutationObserver` watches the popup's `style` attribute directly so the overlap check stays live during drag/resize. A second `MutationObserver` on `document.body` (with `subtree: true`, since Lyrics+ nests the popup inside `.main-view-container` rather than appending it straight to `body`) starts and stops that watch as the popup is created or removed.
+- **Lifecycle:** both observers start in `createHeader()` and are torn down in `removeHeader()`, alongside the header's other observers/state. Self-contained - a no-op (header behaves exactly as before) when Spotify Lyrics+ isn't installed.
