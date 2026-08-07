@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cigi Spotify Translator
 // @namespace    https://github.com/Myst1cX/cigi-spotify-translator-fork
-// @version      1.0.3.fork
+// @version      1.0.4.fork
 // @description  Extract, translate, and display Spotify lyrics with a language selector and manual translation trigger
 // @author       Raiwulf, Myst1cX (fork)
 // @match        *://open.spotify.com/*
@@ -80,6 +80,29 @@
 // stale "just cached"/"cache hit" badge can't keep glowing after the translation it refers
 // to has been removed.
 
+// Changelog: 1.0.4.fork
+// Fixed the header floating over Spotify Lyrics+ (pip-gui-stable.user.js)'s popup, even
+// though the popup's z-index (100000) already vastly outranks the header's (1000). Root
+// cause wasn't z-index at all: Lyrics+ appends its popup inside .main-view-container - the
+// same element that sits under an ancestor `transform` from Spotify's OverlayScrollbars,
+// which is exactly why our own header is appended to document.body instead (see 1.0.fork).
+// That transform creates a stacking context, so the popup's z-index:100000 is only ever
+// compared against elements trapped in that same context - never against our header, which
+// lives in the root stacking context and outranks that entire subtree regardless of what
+// z-index Lyrics+ used inside it. Since this is a stacking-context problem, not a numbers
+// problem, positionHeader() now measures instead: it checks the popup's actual on-screen box
+// (skipped if closed, display:none, visibility:hidden, or opacity:0) against the header's own
+// box, and hides the header via the same visibility:hidden technique used for the
+// NPV/Queue/Connect case whenever they overlap - so the header stays usable when the popup is
+// dragged/resized somewhere that doesn't touch it, rather than hiding any time Lyrics+ is
+// merely open. A MutationObserver on the popup's style attribute re-checks live as it's
+// dragged or resized (those move it via direct inline style writes that fire neither a
+// .main-view-container resize nor our existing ResizeObserver), and a second observer on
+// document.body (subtree, since Lyrics+ nests the popup rather than appending it as a direct
+// body child) starts/stops that watch as the popup is created or removed. Both are
+// self-contained and start/stop with the header's own mount/unmount lifecycle, so this is a
+// no-op when Spotify Lyrics+ isn't installed.
+
 (function () {
     'use strict';
 
@@ -92,6 +115,12 @@
     let newlyCachedIconHideTimeout = null;
     let cacheHitIconElement = null;
     let cacheHitIconHideTimeout = null;
+
+    // Tracks Spotify Lyrics+ (pip-gui-stable)'s floating #lyrics-plus-popup so our header
+    // can duck behind it instead of covering it - see positionHeader() and the
+    // "Lyrics+ popup overlap" note below for why z-index alone can't fix this.
+    let lyricsPlusBodyObserver = null;
+    let lyricsPlusPopupStyleObserver = null;
 
     // ---- Debug logging (toggle via Tampermonkey menu, off by default) ----
     let debugEnabled = GM_getValue('cigiDebugLogging', false);
@@ -975,8 +1004,40 @@
             headerResizeObserver.observe(mainViewContainer);
         }
         window.addEventListener('resize', positionHeader);
+        setupLyricsPlusPopupWatch();
 
         dbgLog('createHeader() header mounted (fixed, rect-synced to .main-view-container)');
+    }
+
+    // Spotify Lyrics+ (pip-gui-stable) renders its own floating, draggable/resizable
+    // #lyrics-plus-popup with z-index:100000, which would normally beat our header's
+    // z-index:1000 with room to spare. But Lyrics+ appends that popup INSIDE
+    // .main-view-container (falling back to body only if that selector is missing) - the
+    // exact element our own header changelog already flagged as sitting under an ancestor
+    // `transform` from Spotify's OverlayScrollbars. That transform creates a stacking
+    // context, so the popup's z-index:100000 is only ever compared against other elements
+    // trapped in that same context - it never actually gets compared to our header's
+    // z-index at all. Our header, appended straight to document.body specifically to
+    // escape that trapped context, ends up in the root stacking context instead, where its
+    // z-index:1000 outranks the *entire* transformed subtree (whatever number Lyrics+ used
+    // inside it). Net effect: our header can paint over the Lyrics+ popup even though every
+    // number involved says it shouldn't. z-index math can't fix a stacking-context problem,
+    // so instead we measure: if the popup is actually on screen and its box overlaps ours,
+    // duck behind it the same way we already duck for the NPV/Queue/Connect collapse case.
+    function getLyricsPlusPopupRect() {
+        const popup = document.getElementById('lyrics-plus-popup');
+        if (!popup) return null;
+        const style = window.getComputedStyle(popup);
+        if (style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity) === 0) {
+            return null;
+        }
+        const rect = popup.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return null;
+        return rect;
+    }
+
+    function rectsOverlap(a, b) {
+        return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
     }
 
     // Keeps the fixed-position header aligned with .main-view-container's current box
@@ -1004,10 +1065,74 @@
             headerElement.style.width = `${rect.width}px`;
         }
 
+        // Second, independent hide condition: if the Lyrics+ popup is on screen and its box
+        // overlaps ours, duck behind it regardless of what the width<=0 check above decided.
+        // Only hides on actual overlap (not just "Lyrics+ is open somewhere"), so our header
+        // stays usable while the popup is dragged/resized off to a corner that doesn't touch it.
+        const popupRect = getLyricsPlusPopupRect();
+        const overlapsLyricsPlusPopup = popupRect ? rectsOverlap(rect.width > 0 ? headerElement.getBoundingClientRect() : rect, popupRect) : false;
+        if (overlapsLyricsPlusPopup) {
+            headerElement.style.visibility = 'hidden';
+        }
+
         if (headerSpacerElement) {
             headerSpacerElement.style.height = `${headerElement.offsetHeight}px`;
         }
-        dbgLog(`positionHeader() left=${Math.round(rect.left)} top=${Math.round(rect.top)} width=${Math.round(rect.width)} visible=${rect.width > 0}`);
+        dbgLog(`positionHeader() left=${Math.round(rect.left)} top=${Math.round(rect.top)} width=${Math.round(rect.width)} lyricsPlusOverlap=${overlapsLyricsPlusPopup} visible=${headerElement.style.visibility === 'visible'}`);
+    }
+
+    // Lyrics+'s popup moves via direct inline style.left/top/width/height writes during
+    // drag/resize (see its makeDraggable()), which fire neither a resize event on
+    // .main-view-container nor our own ResizeObserver on it. Watch the popup's style
+    // attribute directly so positionHeader() re-checks overlap live as it's dragged, and
+    // watch document.body for the popup's creation/removal so we start/stop watching it as
+    // Lyrics+ is opened/closed - Lyrics+ may not exist yet, or may be closed and reopened,
+    // at any point while our own header is mounted.
+    function watchLyricsPlusPopup(popup) {
+        if (lyricsPlusPopupStyleObserver) lyricsPlusPopupStyleObserver.disconnect();
+        lyricsPlusPopupStyleObserver = new MutationObserver(() => positionHeader());
+        lyricsPlusPopupStyleObserver.observe(popup, { attributes: true, attributeFilter: ['style'] });
+        dbgLog('watchLyricsPlusPopup() attached style observer to #lyrics-plus-popup');
+    }
+
+    function setupLyricsPlusPopupWatch() {
+        const existingPopup = document.getElementById('lyrics-plus-popup');
+        if (existingPopup) watchLyricsPlusPopup(existingPopup);
+
+        // subtree:true because Lyrics+ appends the popup inside .main-view-container (falling
+        // back to a direct document.body child only if that selector is missing at the time),
+        // so a body-only childList watch would miss the common case entirely.
+        lyricsPlusBodyObserver = new MutationObserver((mutations) => {
+            for (const mutation of mutations) {
+                for (const node of mutation.addedNodes) {
+                    if (node.nodeType === 1 && node.id === 'lyrics-plus-popup') {
+                        watchLyricsPlusPopup(node);
+                        positionHeader();
+                    }
+                }
+                for (const node of mutation.removedNodes) {
+                    if (node.nodeType === 1 && node.id === 'lyrics-plus-popup') {
+                        if (lyricsPlusPopupStyleObserver) {
+                            lyricsPlusPopupStyleObserver.disconnect();
+                            lyricsPlusPopupStyleObserver = null;
+                        }
+                        positionHeader();
+                    }
+                }
+            }
+        });
+        lyricsPlusBodyObserver.observe(document.body, { childList: true, subtree: true });
+    }
+
+    function teardownLyricsPlusPopupWatch() {
+        if (lyricsPlusBodyObserver) {
+            lyricsPlusBodyObserver.disconnect();
+            lyricsPlusBodyObserver = null;
+        }
+        if (lyricsPlusPopupStyleObserver) {
+            lyricsPlusPopupStyleObserver.disconnect();
+            lyricsPlusPopupStyleObserver = null;
+        }
     }
 
     function removeHeader() {
@@ -1026,6 +1151,7 @@
             dbgLog('removeHeader() header resize observer disconnected');
         }
         window.removeEventListener('resize', positionHeader);
+        teardownLyricsPlusPopupWatch();
         if (newlyCachedIconHideTimeout) {
             clearTimeout(newlyCachedIconHideTimeout);
             newlyCachedIconHideTimeout = null;
