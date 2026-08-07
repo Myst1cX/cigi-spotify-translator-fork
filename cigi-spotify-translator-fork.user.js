@@ -69,11 +69,13 @@
 // Changelog: 1.0.3.fork
 // Added a small red "✕" button next to Translate that clears the currently-displayed
 // translation without touching the persistent cache - re-clicking Translate afterwards
-// still reloads instantly from cache. Shares Translate's height/font/border-radius so it
-// sits on the same baseline, but stays compact (no min-width) instead of matching
-// Translate's full width, so it reads as a lightweight companion action. Also cancels any
-// in-flight translation run (generation bump) and resets both cache-feedback icons, so a
-// stale "just cached"/"cache hit" badge can't keep glowing after the translation it
+// still reloads instantly from cache. Both buttons now share an explicit height:36px
+// (box-sizing:border-box, flex-centered content) so they sit on an identical footprint
+// regardless of padding/font differences; the remove button stays compact (no min-width,
+// tight horizontal padding, saturated #ff3b30 red with a hover-darken) so it reads as a
+// lightweight companion action rather than a second equally-weighted button. Also cancels
+// any in-flight translation run (generation bump) and resets both cache-feedback icons, so
+// a stale "just cached"/"cache hit" badge can't keep glowing after the translation it
 // refers to has been removed.
 
 (function () {
@@ -805,7 +807,9 @@
         const translateButton = document.createElement('button');
         translateButton.textContent = 'Translate';
         translateButton.style.cssText = `
-            padding: 8px 16px;
+            box-sizing: border-box;
+            height: 36px;
+            padding: 0 16px;
             background-color: #1db954;
             color: white;
             border: none;
@@ -814,6 +818,9 @@
             font-size: 14px;
             font-weight: 500;
             min-width: 100px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         `;
 
         translateButton.addEventListener('click', () => {
@@ -836,25 +843,31 @@
 
         // Small red button that clears the currently-displayed translation (DOM only,
         // persistent cache untouched - see removeTranslation()). Deliberately shares
-        // Translate's vertical rhythm (same padding-block/font-size/border-radius, so
-        // it lines up on the same baseline and height) but drops Translate's
-        // min-width:100px in favor of tight horizontal padding, so it reads as a
-        // compact companion action rather than a second equally-weighted button.
+        // Translate's exact height (both explicitly set to 36px, box-sizing:border-box,
+        // flex-centered content) so the two sit on an identical baseline/footprint, but
+        // drops Translate's min-width:100px in favor of tight horizontal padding, so it
+        // reads as a compact companion action rather than a second equally-weighted button.
         const removeButton = document.createElement('button');
         removeButton.textContent = '✕';
         removeButton.title = 'Remove translation';
         removeButton.setAttribute('data-cigi-remove-btn', 'true');
         removeButton.style.cssText = `
-            padding: 8px 10px;
-            background-color: #e0245e;
+            box-sizing: border-box;
+            height: 36px;
+            padding: 0 12px;
+            background-color: #ff3b30;
             color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
-            font-size: 14px;
-            font-weight: 500;
-            line-height: 1;
+            font-size: 16px;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         `;
+        removeButton.addEventListener('mouseenter', () => { removeButton.style.backgroundColor = '#e0291f'; });
+        removeButton.addEventListener('mouseleave', () => { removeButton.style.backgroundColor = '#ff3b30'; });
         removeButton.addEventListener('click', removeTranslation);
 
         // Transient icon shown briefly the moment a fresh translation gets stored into the
@@ -1056,4 +1069,3 @@
         watchLyricsPresence();
     });
 })();
-
