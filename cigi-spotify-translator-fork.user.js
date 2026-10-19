@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cigi Spotify Translator
 // @namespace    https://github.com/Myst1cX/cigi-spotify-translator-fork
-// @version      1.0.4.fork
+// @version      1.0.5.fork
 // @description  Extract, translate, and display Spotify lyrics with a language selector and manual translation trigger
 // @author       Raiwulf, Myst1cX (fork)
 // @match        *://open.spotify.com/*
@@ -103,6 +103,18 @@
 // self-contained and start/stop with the header's own mount/unmount lifecycle, so this is a
 // no-op when Spotify Lyrics+ isn't installed.
 
+// Changelog: 1.0.5.fork
+// dbgLog() output now reaches the Spotifuck app's Logger (app v1.54+). Inside the app
+// GM_registerMenuCommand does nothing, so the "Debug Logging (console)" toggle could never
+// be switched on and none of the dbgLog() lines were ever produced there. dbgLog() now also
+// forwards its line to AndBridge.dbgt under the tag us.cigi-spotify-translator-fork whenever
+// the app's Settings > Debug Logging is on, so they show up in Settings > Logger (Source =
+// userscripts, or search tag:us.cigi). On that path, positionHeader() lines (they fire on
+// every resize/drag tick) are forwarded only when the visible/overlap state changes, not for every
+// coordinate change; every other line is forwarded as-is. The console path and the GM flag work
+// as before; in a plain userscript manager (or an app without dbgt) the new code does
+// nothing. No call site changed.
+
 (function () {
     'use strict';
 
@@ -126,7 +138,46 @@
     let debugEnabled = GM_getValue('cigiDebugLogging', false);
     let debugMenuId = null;
 
+    // --- App Logger bridge ---
+    // Inside the Spotifuck app GM_registerMenuCommand is a no-op, so the GM "Debug Logging (console)" flag can
+    // never be switched on there and dbgLog() stayed silent forever. It now also forwards to the app's own log
+    // (Settings > Logger) through AndBridge.dbgt, tagged APP_LOG_TAG = "us.<this file's name>" - the same tag
+    // the Logger derives from this script's console output - so Source = userscripts shows it. The app gates it
+    // (Settings > Debug Logging); appLogOn() asks first so details are not serialized while that is off.
+    // Outside the app, or on an app build without dbgt, all of this is a no-op. The console path is unchanged.
+    // (Calls AndBridge directly, not window.dbg: this file is eval'd in the global scope and a top-level dbg
+    // here would replace the app's window.dbg helper.)
+    const APP_LOG_TAG = 'us.cigi-spotify-translator-fork';
+    function appLogOn() {
+        try { return !!(window.AndBridge && typeof window.AndBridge.dbgt === 'function' && window.AndBridge.getDebugLogEnabled()); }
+        catch (e) { return false; }
+    }
+    function appLogText(v) {
+        if (v === undefined || v === null || v === '') return '';
+        if (typeof v === 'string') return v;
+        if (v instanceof Error) return v.message;
+        try { return JSON.stringify(v) || String(v); } catch (e) { return String(v); }
+    }
+    function appLog(msg) {
+        try { window.AndBridge.dbgt('l', APP_LOG_TAG, msg); } catch (e) {}
+    }
+    // Cigi-only: positionHeader() logs on every resize/popup-drag tick and its coordinates change each time,
+    // which would fill the app's 4000-line buffer. On the app side those lines are forwarded only when the
+    // visible/overlap state changes (the coordinates are left out of the comparison). Every other line is
+    // forwarded as-is, repeats included. The console path above is unaffected.
+    let lastPositionState = null;
+
     function dbgLog(msg, ...extra) {
+        if (appLogOn()) {
+            const line = extra.length ? msg + ' ' + extra.map(appLogText).join(' ') : msg;
+            let skip = false;
+            if (msg.indexOf('positionHeader() left=') === 0) {
+                const state = msg.replace(/left=\S+ top=\S+ width=\S+ /, '');
+                if (state === lastPositionState) skip = true;
+                else lastPositionState = state;
+            }
+            if (!skip) appLog(line);
+        }
         if (!debugEnabled) return;
         console.log(`%c[Cigi Translator] ${msg}`, 'color:#1db954;font-weight:bold;', ...extra);
     }
