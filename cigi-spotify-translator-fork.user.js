@@ -104,7 +104,7 @@
 // no-op when Spotify Lyrics+ isn't installed.
 
 // Changelog: 1.0.5.fork
-// dbgLog() output now reaches the Spotifuck app's Logger (app v1.54+). Inside the app
+// dbgLog() output now reaches the Spotifuck app's Logger (app v1.52+). Inside the app
 // GM_registerMenuCommand does nothing, so the "Debug Logging (console)" toggle could never
 // be switched on and none of the dbgLog() lines were ever produced there. dbgLog() now also
 // forwards its line to AndBridge.dbgt under the tag us.cigi-spotify-translator-fork whenever
