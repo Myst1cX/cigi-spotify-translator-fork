@@ -124,6 +124,12 @@
 // where the card is not present. The same filter applies to translating, to the repair observer
 // and to the header's presence check, so a translation can never be written into the preview card.
 // The lyrics view itself is detected as before.
+// Also added a "scene:" diagnostic line for the app Logger / console (tag us.cigi): once a second the
+// script checks what the page shows about lyrics (route, lyrics-line count and how many are on screen,
+// every data-testid containing "yric", where the first line sits, header mounted, main view width) and
+// logs one line only when that changes. It does nothing, not even the measuring, unless logging is on
+// (app Settings > Debug Logging, or the console flag), so normal use is unaffected. Makes the next
+// Spotify layout change quick to pin down. No behaviour change.
 
 (function () {
     'use strict';
@@ -1242,7 +1248,50 @@
         disconnectRepairObserver();
     }
 
+    // Diagnostic, see the 1.0.6.fork note. Gated: no measuring at all unless a log is actually listening.
+    let lastScene = '';
+    function sceneVisible(el) {
+        const r = el.getBoundingClientRect();
+        if (r.width <= 0 || r.height <= 0 || !el.getClientRects().length) return false;
+        const cs = getComputedStyle(el);
+        if (cs.visibility === 'hidden' || cs.display === 'none') return false;
+        return r.bottom > 0 && r.right > 0 && r.top < window.innerHeight && r.left < window.innerWidth;
+    }
+    function sceneChain(el) {
+        const out = [];
+        for (let n = el, i = 0; n && n !== document.body && i < 6; n = n.parentElement, i++) {
+            let d = n.tagName.toLowerCase();
+            if (n.id) d += '#' + n.id;
+            const t = n.getAttribute('data-testid'); if (t) d += '[' + t + ']';
+            const l = n.getAttribute('aria-label'); if (l) d += '(' + l + ')';
+            out.push(d);
+        }
+        return out.join(' < ');
+    }
+    function diagScene() {
+        if (!appLogOn() && !debugEnabled) { lastScene = ''; return; }
+        try {
+            const lines = document.querySelectorAll('[data-testid="lyrics-line"]');
+            let vis = 0, firstVisible = null;
+            lines.forEach(l => { if (sceneVisible(l)) { vis++; if (!firstVisible) firstVisible = l; } });
+            const ids = {};
+            document.querySelectorAll('[data-testid*="yric"]').forEach(e => {
+                const k = e.getAttribute('data-testid');
+                const o = ids[k] || (ids[k] = [0, 0]);
+                o[0]++; if (sceneVisible(e)) o[1]++;
+            });
+            const mv = document.querySelector('.main-view-container');
+            const mvw = mv ? Math.round(mv.getBoundingClientRect().width) : -1;
+            const first = firstVisible || lines[0];
+            const scene = 'scene: path=' + location.pathname + ' lines=' + lines.length + ' visible=' + vis
+                + ' header=' + !!headerElement + ' mainW=' + mvw + ' testids=' + JSON.stringify(ids)
+                + ' firstLine=' + (first ? sceneChain(first) : '-') + ' body=' + (document.body.className || '-');
+            if (scene !== lastScene) { lastScene = scene; dbgLog(scene); }
+        } catch (e) { dbgLog('scene: error ' + e.message); }
+    }
+
     function watchLyricsPresence() {
+        diagScene();
         // Library overlay (from spotifuck-mobile, if installed) sits on top of the page
         // without changing the route or removing the underlying lyrics DOM, so
         // lyrics-line would otherwise still read as "present" and the header would
