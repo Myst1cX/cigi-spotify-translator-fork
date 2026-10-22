@@ -97,3 +97,31 @@
 - **Fix:** since this is a stacking-context issue rather than a numbers issue, `positionHeader()` now measures the Lyrics+ popup's actual on-screen box (treated as absent if it's closed, `display: none`, `visibility: hidden`, or fully transparent) and compares it against the header's own box. On overlap, the header hides via the same `visibility: hidden` technique already used for the NPV/Queue/Connect collapse case - so it only ducks when the two actually intersect, not any time Lyrics+ happens to be open elsewhere on screen.
 - **Live tracking while dragging/resizing:** Lyrics+ moves its popup via direct inline `style.left/top/width/height` writes, which fire neither a `.main-view-container` resize nor our existing `ResizeObserver`. A new `MutationObserver` watches the popup's `style` attribute directly so the overlap check stays live during drag/resize. A second `MutationObserver` on `document.body` (with `subtree: true`, since Lyrics+ nests the popup inside `.main-view-container` rather than appending it straight to `body`) starts and stops that watch as the popup is created or removed.
 - **Lifecycle:** both observers start in `createHeader()` and are torn down in `removeHeader()`, alongside the header's other observers/state. Self-contained - a no-op (header behaves exactly as before) when Spotify Lyrics+ isn't installed.
+
+## v1.0.5.fork
+
+### What changed (plain-language summary)
+
+- **Debug logging now works inside the Spotifuck app.** The app has no userscript menu, so the "Debug Logging (Console)" switch could never be turned on there and the script's debug lines were never produced. They now show up in the app's own Logger (Settings > Logger, Source = userscripts, or search `tag:us.cigi`) whenever Debug Logging is switched on in the app's Settings. Needs Spotifuck app v1.52 or newer.
+- **Nothing changes anywhere else.** In a normal browser or on an app without the Logger, the script behaves exactly as before, and the console switch in the userscript manager works as it always did.
+
+### Technical detail
+
+- **App Logger bridge:** `dbgLog()` now also forwards its line to `window.AndBridge.dbgt('l', 'us.cigi-spotify-translator-fork', line)`. That tag is the same one the Logger derives from this script's console output, so Source = userscripts picks it up. The app gates it on its own Settings > Debug Logging switch; `appLogOn()` asks first (`AndBridge.dbgt` exists and `getDebugLogEnabled()` is true), so details aren't serialized while that is off. Extra arguments are joined onto the line (`appLogText()`: strings as-is, errors as their message, everything else through `JSON.stringify`).
+- **`positionHeader()` lines:** these fire on every resize and popup-drag tick and their coordinates change each time, which would fill the app's 4000-line buffer. On the app path they are forwarded only when the visible/overlap state changes; the coordinates are left out of that comparison. Every other line is forwarded as-is, repeats included.
+- **Calls `AndBridge` directly, not `window.dbg`:** the app evals this file in the global scope, so a top-level `dbg` here would replace the app's own `window.dbg` helper.
+- **Console path unchanged:** the `debugEnabled` flag (`GM_setValue`/`GM_getValue`) and the "Debug Logging (Console)" menu command work as before. In a plain userscript manager, or an app without `dbgt`, the new code does nothing. No call site changed.
+
+## v1.0.6.fork
+
+### What changed (plain-language summary)
+
+- **The Translate header no longer shows up on Home and Search.** It was appearing on every screen as soon as Spotify's Now Playing panel was loaded, instead of only when the lyrics view is open. It now mounts for the real lyrics view only.
+- **New diagnostic line for the app Logger / console**, off unless logging is on, so the next time Spotify changes its layout the cause is quick to find. Normal use is unaffected.
+
+### Technical detail
+
+- **Root cause:** Spotify's Now Playing panel carries a small lyrics preview card (`[data-testid="lyrics-npv-section"]`, about 7 `lyrics-line` elements, only 1-2 of them on screen) that stays in the page whenever the panel is rendered, including on Home and Search. `watchLyricsPresence()` treated any `[data-testid="lyrics-line"]` as "the lyrics view is open", so the card's lines mounted the header everywhere. On the real lyrics view the card is not present and the page has the full set of lines (46 in the log it was found from, 8-13 on screen).
+- **Fix:** new `getLyricLines()` returns the `lyrics-line` elements that are not inside `NPV_LYRICS_CARD` (`el.closest('[data-testid="lyrics-npv-section"]')`). It is used by the header's presence check in `watchLyricsPresence()`, by `repairMissingTranslations()` and `attachRepairObserver()`, and `translateLyrics()` applies the same filter to its `[data-testid="lyrics-line"] div` candidates (now an array, still indexed and iterated the same way). A translation therefore can never be written into the preview card. Lyrics-view detection is otherwise unchanged.
+- **Diagnostic (`diagScene()`):** once a second, from `watchLyricsPresence()`, it builds one `scene:` line: route, `lyrics-line` count and how many are on screen, every `data-testid` containing "yric" with the same two counts, the first line's ancestor chain (up to six levels, with tag, id, `data-testid` and `aria-label`), whether the header is mounted, `.main-view-container` width and the `body` classes. It goes through `dbgLog()` only when the line differs from the last one, so it uses the same app Logger bridge and tag as the other lines (v1.0.5).
+- **Gated:** `diagScene()` returns immediately unless `appLogOn()` (app Settings > Debug Logging) or `debugEnabled` (console menu switch) is true, so with logging off it does no querying or measuring. With logging on it checks under a hundred elements once a second. No behaviour change.

@@ -24,7 +24,8 @@
 > Small fade-in icons next to the Translate button show whether a translation was just cached or loaded from cache.
 >
 > **OPTIONAL DEBUG LOGGING**  
-> Toggleable console logging for troubleshooting, off by default, no reload needed to switch.
+> Toggleable console logging for troubleshooting, off by default, no reload needed to switch.  
+> Inside the Spotifuck app (v1.52+) the same lines go to the app's Logger when Debug Logging is on in its Settings.
 
 ## Installation
 
