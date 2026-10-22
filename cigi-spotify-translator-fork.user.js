@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cigi Spotify Translator
 // @namespace    https://github.com/Myst1cX/cigi-spotify-translator-fork
-// @version      1.0.5.fork
+// @version      1.0.5.fork-diag
 // @description  Extract, translate, and display Spotify lyrics with a language selector and manual translation trigger
 // @author       Raiwulf, Myst1cX (fork)
 // @match        *://open.spotify.com/*
@@ -1223,7 +1223,51 @@
         disconnectRepairObserver();
     }
 
+    // DIAGNOSTIC (temporary): logs one "scene:" line whenever what the page shows about lyrics changes - route,
+    // how many lyrics-line elements exist and how many are really visible, every data-testid containing "yric",
+    // where the first line sits in the page, and whether the header is mounted. No behaviour change.
+    let lastScene = '';
+    function sceneVisible(el) {
+        const r = el.getBoundingClientRect();
+        if (r.width <= 0 || r.height <= 0 || !el.getClientRects().length) return false;
+        const cs = getComputedStyle(el);
+        if (cs.visibility === 'hidden' || cs.display === 'none') return false;
+        return r.bottom > 0 && r.right > 0 && r.top < window.innerHeight && r.left < window.innerWidth;
+    }
+    function sceneChain(el) {
+        const out = [];
+        for (let n = el, i = 0; n && n !== document.body && i < 6; n = n.parentElement, i++) {
+            let d = n.tagName.toLowerCase();
+            if (n.id) d += '#' + n.id;
+            const t = n.getAttribute('data-testid'); if (t) d += '[' + t + ']';
+            const l = n.getAttribute('aria-label'); if (l) d += '(' + l + ')';
+            out.push(d);
+        }
+        return out.join(' < ');
+    }
+    function diagScene() {
+        try {
+            const lines = document.querySelectorAll('[data-testid="lyrics-line"]');
+            let vis = 0, firstVisible = null;
+            lines.forEach(l => { if (sceneVisible(l)) { vis++; if (!firstVisible) firstVisible = l; } });
+            const ids = {};
+            document.querySelectorAll('[data-testid*="yric"]').forEach(e => {
+                const k = e.getAttribute('data-testid');
+                const o = ids[k] || (ids[k] = [0, 0]);
+                o[0]++; if (sceneVisible(e)) o[1]++;
+            });
+            const mv = document.querySelector('.main-view-container');
+            const mvw = mv ? Math.round(mv.getBoundingClientRect().width) : -1;
+            const where = (firstVisible || lines[0]) ? sceneChain(firstVisible || lines[0]) : '-';
+            const scene = 'scene: path=' + location.pathname + ' lines=' + lines.length + ' visible=' + vis
+                + ' header=' + !!headerElement + ' mainW=' + mvw + ' testids=' + JSON.stringify(ids)
+                + ' firstLine=' + where + ' body=' + (document.body.className || '-');
+            if (scene !== lastScene) { lastScene = scene; dbgLog(scene); }
+        } catch (e) { dbgLog('scene: error ' + e.message); }
+    }
+
     function watchLyricsPresence() {
+        diagScene();
         // Library overlay (from spotifuck-mobile, if installed) sits on top of the page
         // without changing the route or removing the underlying lyrics DOM, so
         // lyrics-line would otherwise still read as "present" and the header would
