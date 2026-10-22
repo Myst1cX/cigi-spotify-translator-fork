@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cigi Spotify Translator
 // @namespace    https://github.com/Myst1cX/cigi-spotify-translator-fork
-// @version      1.0.5.fork-diag
+// @version      1.0.6.fork
 // @description  Extract, translate, and display Spotify lyrics with a language selector and manual translation trigger
 // @author       Raiwulf, Myst1cX (fork)
 // @match        *://open.spotify.com/*
@@ -114,6 +114,16 @@
 // coordinate change; every other line is forwarded as-is. The console path and the GM flag work
 // as before; in a plain userscript manager (or an app without dbgt) the new code does
 // nothing. No call site changed.
+
+// Changelog: 1.0.6.fork
+// Fixed the Translate header showing on Home and Search. Spotify's Now Playing panel carries a small
+// lyrics preview card (data-testid="lyrics-npv-section", about 7 lyrics-line elements, 1-2 of them
+// on screen) that stays in the page whenever that panel is rendered, and the presence check counted
+// its lines as "the lyrics view is open". The header therefore mounted on every screen. Lines inside
+// that card are now ignored (getLyricLines()), so the header mounts only for the real lyrics view,
+// where the card is not present. The same filter applies to translating, to the repair observer
+// and to the header's presence check, so a translation can never be written into the preview card.
+// The lyrics view itself is detected as before.
 
 (function () {
     'use strict';
@@ -364,8 +374,16 @@
         }
     }
 
+    // Spotify's Now Playing panel has its own lyrics preview card; its lyrics-line elements are not the lyrics
+    // view. Everything below that looks for lyric lines goes through this so the card never counts.
+    const NPV_LYRICS_CARD = '[data-testid="lyrics-npv-section"]';
+    function getLyricLines() {
+        return Array.from(document.querySelectorAll('[data-testid="lyrics-line"]'))
+            .filter(el => !el.closest(NPV_LYRICS_CARD));
+    }
+
     function repairMissingTranslations() {
-        const lines = document.querySelectorAll('[data-testid="lyrics-line"]');
+        const lines = getLyricLines();
         let repaired = 0;
         lines.forEach(line => {
             if (line.querySelector('[data-translated="true"]')) return;
@@ -389,7 +407,7 @@
 
     function attachRepairObserver() {
         disconnectRepairObserver();
-        const anyLine = document.querySelector('[data-testid="lyrics-line"]');
+        const anyLine = getLyricLines()[0];
         if (!anyLine || !anyLine.parentNode) {
             dbgLog('attachRepairObserver() no lyrics-line parent found, repair observer NOT attached');
             return;
@@ -593,7 +611,8 @@
         disconnectRepairObserver(); // old cache/observer belong to the previous run, no longer valid
         dbgLog(`translateLyrics() started (gen ${myGeneration}, lang "${targetLang}")`);
 
-        const lyricsDivs = document.querySelectorAll('[data-testid="lyrics-line"] div');
+        const lyricsDivs = Array.from(document.querySelectorAll('[data-testid="lyrics-line"] div'))
+            .filter(div => !div.closest(NPV_LYRICS_CARD));
         dbgLog(`translateLyrics() found ${lyricsDivs.length} candidate lyric divs, target lang "${targetLang}"`);
 
         const originalLines = [];
@@ -1223,58 +1242,14 @@
         disconnectRepairObserver();
     }
 
-    // DIAGNOSTIC (temporary): logs one "scene:" line whenever what the page shows about lyrics changes - route,
-    // how many lyrics-line elements exist and how many are really visible, every data-testid containing "yric",
-    // where the first line sits in the page, and whether the header is mounted. No behaviour change.
-    let lastScene = '';
-    function sceneVisible(el) {
-        const r = el.getBoundingClientRect();
-        if (r.width <= 0 || r.height <= 0 || !el.getClientRects().length) return false;
-        const cs = getComputedStyle(el);
-        if (cs.visibility === 'hidden' || cs.display === 'none') return false;
-        return r.bottom > 0 && r.right > 0 && r.top < window.innerHeight && r.left < window.innerWidth;
-    }
-    function sceneChain(el) {
-        const out = [];
-        for (let n = el, i = 0; n && n !== document.body && i < 6; n = n.parentElement, i++) {
-            let d = n.tagName.toLowerCase();
-            if (n.id) d += '#' + n.id;
-            const t = n.getAttribute('data-testid'); if (t) d += '[' + t + ']';
-            const l = n.getAttribute('aria-label'); if (l) d += '(' + l + ')';
-            out.push(d);
-        }
-        return out.join(' < ');
-    }
-    function diagScene() {
-        try {
-            const lines = document.querySelectorAll('[data-testid="lyrics-line"]');
-            let vis = 0, firstVisible = null;
-            lines.forEach(l => { if (sceneVisible(l)) { vis++; if (!firstVisible) firstVisible = l; } });
-            const ids = {};
-            document.querySelectorAll('[data-testid*="yric"]').forEach(e => {
-                const k = e.getAttribute('data-testid');
-                const o = ids[k] || (ids[k] = [0, 0]);
-                o[0]++; if (sceneVisible(e)) o[1]++;
-            });
-            const mv = document.querySelector('.main-view-container');
-            const mvw = mv ? Math.round(mv.getBoundingClientRect().width) : -1;
-            const where = (firstVisible || lines[0]) ? sceneChain(firstVisible || lines[0]) : '-';
-            const scene = 'scene: path=' + location.pathname + ' lines=' + lines.length + ' visible=' + vis
-                + ' header=' + !!headerElement + ' mainW=' + mvw + ' testids=' + JSON.stringify(ids)
-                + ' firstLine=' + where + ' body=' + (document.body.className || '-');
-            if (scene !== lastScene) { lastScene = scene; dbgLog(scene); }
-        } catch (e) { dbgLog('scene: error ' + e.message); }
-    }
-
     function watchLyricsPresence() {
-        diagScene();
         // Library overlay (from spotifuck-mobile, if installed) sits on top of the page
         // without changing the route or removing the underlying lyrics DOM, so
         // lyrics-line would otherwise still read as "present" and the header would
         // wrongly persist over it instead of hiding like it does for Home/Search.
         const librarySidebar = document.querySelector('#Desktop_LeftSidebar_Id');
         const libraryOpen = !!librarySidebar && librarySidebar.dataset.fuckExpanded === 'true';
-        const lyricsPresent = !libraryOpen && !!document.querySelector('[data-testid="lyrics-line"]');
+        const lyricsPresent = !libraryOpen && getLyricLines().length > 0;
 
         if (lyricsPresent && !headerElement) {
             dbgLog('watchLyricsPresence() lyrics container opened, mounting header (no auto-translate)');
